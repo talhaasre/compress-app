@@ -13,6 +13,14 @@
 
   // ---------------------------------------------------------------- config
   const PRESET = window.COMPRESS_PRESET || {}; // set per page in default.php
+  const I18N = window.COMPRESS_I18N || {};     // interface text for the page's language
+
+  /** Translated text with {placeholders} filled in. */
+  function t(key, vars) {
+    let text = I18N[key] || key;
+    if (vars) Object.keys(vars).forEach((k) => { text = text.split('{' + k + '}').join(vars[k]); });
+    return text;
+  }
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB per image
   const MAX_FILES = 10;                   // images per batch
   const INPUT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp'];
@@ -115,7 +123,7 @@
 
   function canvasToBlob(c, type, quality) {
     return new Promise((resolve, reject) => {
-      c.toBlob((b) => (b ? resolve(b) : reject(new Error('Your browser could not encode this image.'))), type, quality);
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error(t('err_encode')))), type, quality);
     });
   }
 
@@ -123,7 +131,7 @@
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('This image could not be read. It may be damaged or in an unsupported format.'));
+      img.onerror = () => reject(new Error(t('err_read')));
       img.src = src;
     });
   }
@@ -152,7 +160,7 @@
       pngWorker.onerror = (e) => {
         // The worker failed to start or crashed: fail pending jobs and stop using it.
         if (e && e.preventDefault) e.preventDefault();
-        pngJobs.forEach((job) => job.reject(new Error('PNG encoder failed. Please refresh and try again.')));
+        pngJobs.forEach((job) => job.reject(new Error(t('err_png'))));
         pngJobs.clear();
         pngWorker = null;
         workerBroken = true;
@@ -167,7 +175,7 @@
   function encodePalettePng(imageData, colors) {
     const worker = getPngWorker();
     if (!worker) {
-      if (!window.UPNG) return Promise.reject(new Error('PNG encoder not loaded'));
+      if (!window.UPNG) return Promise.reject(new Error(t('err_png')));
       const png = window.UPNG.encode([imageData.data.buffer], imageData.width, imageData.height, colors);
       return Promise.resolve(new Blob([png], { type: 'image/png' }));
     }
@@ -380,7 +388,7 @@
     options.forEach((value) => {
       const opt = document.createElement('option');
       opt.value = value;
-      opt.textContent = FORMAT_NAMES[value] + (value === original ? ' (original)' : '');
+      opt.textContent = FORMAT_NAMES[value] + (value === original ? ' ' + t('original_suffix') : '');
       formatSelect.appendChild(opt);
     });
     formatSelect.value = item.format;
@@ -392,21 +400,21 @@
     qualitySlider.closest('.quality-group').classList.toggle('is-auto', auto);
     if (auto) {
       const q = item.result && item.result.key === settingsKey(item) ? item.result.quality : null;
-      qualityLabel.textContent = 'Quality (auto)';
+      qualityLabel.textContent = t('quality_auto');
       qualityValue.textContent = q === null ? '–' : q;
-      qualityDisplay.textContent = 'Auto';
-      qualityDisplay.title = 'The highest quality that fits the target size is chosen for you.';
+      qualityDisplay.textContent = t('auto');
+      qualityDisplay.title = t('auto_title');
       return;
     }
     qualitySlider.value = item.quality;
     qualityValue.textContent = item.quality;
     if (item.format === 'image/png') {
       const colors = pngColors(item.quality);
-      qualityLabel.textContent = 'Quality';
-      qualityDisplay.textContent = colors === 0 ? 'Lossless' : `${colors} colours`;
-      qualityDisplay.title = 'PNG is compressed by reducing the colour palette. 100% keeps every colour.';
+      qualityLabel.textContent = t('quality');
+      qualityDisplay.textContent = colors === 0 ? t('lossless') : t('colours', { n: colors });
+      qualityDisplay.title = t('png_title');
     } else {
-      qualityLabel.textContent = 'Quality';
+      qualityLabel.textContent = t('quality');
       qualityDisplay.textContent = `${item.quality}%`;
       qualityDisplay.title = '';
     }
@@ -417,7 +425,7 @@
     const r = item.result;
     if (!r) {
       optimizedSize.textContent = '…';
-      optimizedMeta.textContent = 'Compressing';
+      optimizedMeta.textContent = t('compressing');
       originalMeta.textContent = item.img ? `${item.img.naturalWidth}×${item.img.naturalHeight}` : '';
       return;
     }
@@ -425,17 +433,17 @@
     optimizedSize.textContent = formatFileSize(r.blob.size);
     const saved = 1 - r.blob.size / item.file.size;
     let meta = `${r.width}×${r.height} · ${FORMAT_NAMES[r.format] || ''}`;
-    if (r.keptOriginal) meta = (parseInt(targetSelect.value, 10) > 0 ? 'Already under target, original kept' : 'Already optimised, original kept');
-    else if (r.missedTarget) meta = `Smallest possible (${r.width}×${r.height}), target not reached`;
+    if (r.keptOriginal) meta = (parseInt(targetSelect.value, 10) > 0 ? t('kept_target') : t('kept'));
+    else if (r.missedTarget) meta = t('missed', { dims: `${r.width}×${r.height}` });
     else if (saved > 0) meta = `−${(saved * 100).toFixed(0)}% · ` + meta;
-    else meta = `+${(-saved * 100).toFixed(0)}% larger · ` + meta;
+    else meta = t('larger', { p: (-saved * 100).toFixed(0) }) + ' · ' + meta;
     optimizedMeta.textContent = meta;
     optimizedMeta.classList.toggle('is-worse', (!r.keptOriginal && saved <= 0) || r.missedTarget);
     if (images[selected] === item) updateQualityUI(item);
   }
 
   function updateDownloadLabel() {
-    downloadBtnText.textContent = images.length > 1 ? `Download ZIP (${images.length} images)` : 'Download';
+    downloadBtnText.textContent = images.length > 1 ? t('download_zip', { n: images.length }) : t('download');
   }
 
   function setDownloadEnabled(enabled) {
@@ -459,9 +467,9 @@
       }
     });
     galleryTitle.textContent = images.length > 1 && done === images.length && totalIn > totalOut
-      ? `Saved ${formatFileSize(totalIn - totalOut)}`
-      : (images.length > 1 ? `${images.length} images` : 'Your image');
-    galleryTitle.title = `${images.length} image${images.length > 1 ? 's' : ''}`;
+      ? t('saved', { size: formatFileSize(totalIn - totalOut) })
+      : (images.length > 1 ? t('n_images', { n: images.length }) : t('your_image'));
+    galleryTitle.title = t('n_images', { n: images.length });
 
     const fragment = document.createDocumentFragment();
     images.forEach((it, index) => {
@@ -474,10 +482,10 @@
         <div class="gallery-image">
           <img src="${it.thumbUrl}" alt="${escapeHtml(it.name)}" loading="lazy" />
           <div class="gallery-overlay">
-            <button type="button" class="download-individual-btn" data-action="download" title="Download this image" aria-label="Download ${escapeHtml(it.name)}">
+            <button type="button" class="download-individual-btn" data-action="download" title="${escapeHtml(t('download_this'))}" aria-label="${escapeHtml(t('download_this'))}: ${escapeHtml(it.name)}">
               <i class="fas fa-download"></i>
             </button>
-            <button type="button" class="remove-btn" data-action="remove" title="Remove this image" aria-label="Remove ${escapeHtml(it.name)}">
+            <button type="button" class="remove-btn" data-action="remove" title="${escapeHtml(t('remove_this'))}" aria-label="${escapeHtml(t('remove_this'))}: ${escapeHtml(it.name)}">
               <i class="fas fa-times"></i>
             </button>
           </div>
@@ -533,7 +541,7 @@
     } catch (err) {
       if (token !== renderToken) return;
       console.error(err);
-      showMessage('Could not compress this image', err.message || String(err));
+      showMessage(t('err_compress'), err.message || String(err));
     }
   }
 
@@ -619,10 +627,10 @@
 
     if (unsupported.length || oversized.length || excess.length) {
       const sections = [];
-      if (excess.length) sections.push({ icon: 'fa-minus-circle text-secondary', title: `Too many images (max ${MAX_FILES} at a time). These will be skipped:`, files: excess.map((f) => f.name), ok: false });
-      if (oversized.length) sections.push({ icon: 'fa-exclamation-triangle text-warning', title: 'Larger than 10 MB:', files: oversized.map((f) => `${f.name} (${formatFileSize(f.size)})`), ok: false });
-      if (unsupported.length) sections.push({ icon: 'fa-times-circle text-danger', title: 'Not a supported image (JPG, PNG, WebP, BMP):', files: unsupported.map((f) => f.name), ok: false });
-      if (accepted.length) sections.push({ icon: 'fa-check-circle text-success', title: 'Ready to compress:', files: accepted.map((f) => `${f.name} (${formatFileSize(f.size)})`), ok: true });
+      if (excess.length) sections.push({ icon: 'fa-minus-circle text-secondary', title: t('too_many', { n: MAX_FILES }), files: excess.map((f) => f.name), ok: false });
+      if (oversized.length) sections.push({ icon: 'fa-exclamation-triangle text-warning', title: t('too_large'), files: oversized.map((f) => `${f.name} (${formatFileSize(f.size)})`), ok: false });
+      if (unsupported.length) sections.push({ icon: 'fa-times-circle text-danger', title: t('unsupported'), files: unsupported.map((f) => f.name), ok: false });
+      if (accepted.length) sections.push({ icon: 'fa-check-circle text-success', title: t('ready'), files: accepted.map((f) => `${f.name} (${formatFileSize(f.size)})`), ok: true });
       pendingFiles = accepted;
       showFileProblems(sections, accepted.length > 0);
       return;
@@ -662,14 +670,14 @@
       </div>`).join('');
     $('errorMessage').innerHTML = body;
     $('errorModalFooter').innerHTML = canContinue
-      ? '<button type="button" class="btn btn-danger" data-modal="cancel">Cancel</button><button type="button" class="btn btn-success" data-modal="continue">Continue</button>'
-      : '<button type="button" class="btn btn-danger" data-modal="cancel" style="max-width: fit-content;">OK</button>';
+      ? `<button type="button" class="btn btn-danger" data-modal="cancel">${escapeHtml(t('cancel'))}</button><button type="button" class="btn btn-success" data-modal="continue">${escapeHtml(t('continue'))}</button>`
+      : `<button type="button" class="btn btn-danger" data-modal="cancel" style="max-width: fit-content;">${escapeHtml(t('ok'))}</button>`;
     errorModal.style.display = 'flex';
   }
 
   function showMessage(title, text) {
     $('errorMessage').innerHTML = `<p><strong>${escapeHtml(title)}</strong></p><p>${escapeHtml(text)}</p>`;
-    $('errorModalFooter').innerHTML = '<button type="button" class="btn btn-danger" data-modal="cancel" style="max-width: fit-content;">OK</button>';
+    $('errorModalFooter').innerHTML = `<button type="button" class="btn btn-danger" data-modal="cancel" style="max-width: fit-content;">${escapeHtml(t('ok'))}</button>`;
     errorModal.style.display = 'flex';
   }
 
@@ -712,7 +720,7 @@
       saveBlob(item.result.blob, outputName(item));
       track('download', { count: 1 });
     } catch (err) {
-      showMessage('Download failed', err.message || String(err));
+      showMessage(t('err_download'), err.message || String(err));
     } finally {
       if (icon) icon.className = 'fas fa-download';
       if (button) button.disabled = false;
@@ -730,7 +738,7 @@
       return;
     }
     if (typeof JSZip === 'undefined') {
-      showMessage('Download failed', 'The ZIP library did not load. Please refresh the page and try again.');
+      showMessage(t('err_download'), t('err_zip'));
       return;
     }
     busy = true;
@@ -742,7 +750,7 @@
       const used = new Set();
       let added = 0;
       for (let i = 0; i < images.length; i++) {
-        downloadBtnText.textContent = `Compressing ${i + 1}/${images.length}…`;
+        downloadBtnText.textContent = t('compressing_n', { i: i + 1, n: images.length });
         try {
           const it = images[i];
           await compressImage(it);
@@ -757,15 +765,15 @@
           console.error(`Skipped ${images[i].name}:`, err);
         }
       }
-      if (!added) throw new Error('None of the images could be compressed.');
-      downloadBtnText.textContent = 'Creating ZIP…';
+      if (!added) throw new Error(t('err_none'));
+      downloadBtnText.textContent = t('creating_zip');
       // Images are already compressed, so storing is faster than deflating again.
       const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
       saveBlob(blob, `compressed-images-${stamp}.zip`);
       track('download', { count: added });
     } catch (err) {
-      showMessage('Download failed', err.message || String(err));
+      showMessage(t('err_download'), err.message || String(err));
     } finally {
       busy = false;
       floatingIcon.className = 'fas fa-download';
@@ -781,7 +789,7 @@
     if (!item) return;
     item.quality = parseInt(qualitySlider.value, 10);
     updateQualityUI(item);
-    optimizedMeta.textContent = 'Compressing';
+    optimizedMeta.textContent = t('compressing');
     scheduleRender(180);
   });
 
@@ -814,7 +822,7 @@
     updateGallery();
     precomputeAll();
     const label = applyToAllBtn.textContent;
-    applyToAllBtn.textContent = 'Applied!';
+    applyToAllBtn.textContent = t('applied');
     applyToAllBtn.disabled = true;
     setTimeout(() => { applyToAllBtn.textContent = label; applyToAllBtn.disabled = false; }, 1500);
   });

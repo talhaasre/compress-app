@@ -50,8 +50,19 @@ compressor itself is plain JavaScript.
 
 Each tool page (`/compress-png`, `/png-to-jpg`, `/compress-image-to-100kb` …)
 is defined in `inc/pages.php` with its own title, description, help text, FAQ
-and preset. Add a page there, then add its URL to `sitemap.xml`. On the server,
-`.htaccess` routes the clean URLs to `default.php`.
+and preset. Add a page there, then run `php inc/build-sitemap.php > sitemap.xml`.
+On the server, `.htaccess` routes the clean URLs to `default.php`.
+
+## Languages
+
+English lives at `/`, and Spanish, Portuguese, French, German, Italian,
+Russian, Turkish, Arabic, Urdu, Hindi, Indonesian and Japanese live under
+`/es/`, `/pt/` … `/ja/`. Each language is one file in `inc/lang/` that
+translates the interface and the tool pages; anything it leaves out falls back
+to English. Every page lists its translations with hreflang tags, and Arabic
+and Urdu are shown right to left. To add a language, copy `inc/lang/es.php`,
+translate it, add its code to `site_languages()` in `inc/i18n.php` and to the
+language rule in `.htaccess`, then rebuild the sitemap.
 
 ## Ads
 
@@ -67,6 +78,9 @@ default.php          all pages (tool pages and about/privacy/terms)
 inc/config.php       analytics and AdSense settings
 inc/pages.php        tool pages: titles, help text, FAQ, presets
 inc/info-pages.php   about, privacy and terms
+inc/i18n.php         languages and URL helpers
+inc/lang/*.php       translations (en.php is the source)
+inc/build-sitemap.php  writes sitemap.xml
 .htaccess            clean URLs, caching (Apache/LiteSpeed)
 dev-router.php       clean URLs for `php -S` during development
 scripts/app.js       all app logic

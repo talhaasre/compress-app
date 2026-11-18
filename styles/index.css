@@ -1957,6 +1957,47 @@ body {
     color: #495057;
 }
 
+.site-footer .lang-links {
+    gap: 4px 14px;
+    font-size: 0.85rem;
+    margin: 10px auto 12px;
+    max-width: 720px;
+    align-items: center;
+}
+
+.lang-links .fa-globe {
+    color: #868e96;
+}
+
+.lang-links a[aria-current] {
+    font-weight: 700;
+    color: #1a2a6c;
+    text-decoration: none;
+}
+
+/* ---- Right-to-left languages (Arabic, Urdu) ----
+   The tool keeps its left-to-right layout (the before/after slider and the
+   toolbar are directional); text blocks inside it and the pages around it
+   read right to left. */
+[dir="rtl"] .app-container {
+    direction: ltr;
+}
+
+[dir="rtl"] .upload-section,
+[dir="rtl"] .control-panel,
+[dir="rtl"] .image-gallery,
+[dir="rtl"] .app-title,
+[dir="rtl"] .error-modal-content,
+[dir="rtl"] .page-content,
+[dir="rtl"] .site-footer {
+    direction: rtl;
+}
+
+[dir="rtl"] .steps,
+[dir="rtl"] .faq {
+    text-align: right;
+}
+
 /* ---- About / privacy / terms ---- */
 .info-header {
     display: flex;

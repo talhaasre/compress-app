@@ -15,6 +15,11 @@ Options -Indexes
     # Settings and page copy are not public
     RewriteRule ^inc/ - [F,L]
 
+    # Other languages: /es/ and /es/compress-png (default.php reads the URL)
+    RewriteRule ^(es|pt|fr|de|it|ru|tr|ar|ur|hi|id|ja)$ /$1/ [R=301,L]
+    RewriteRule ^(es|pt|fr|de|it|ru|tr|ar|ur|hi|id|ja)/([a-z0-9-]+)/$ /$1/$2 [R=301,L]
+    RewriteRule ^(es|pt|fr|de|it|ru|tr|ar|ur|hi|id|ja)/([a-z0-9-]*)$ default.php [L,QSA]
+
     # Drop trailing slashes on pages: /compress-png/ -> /compress-png
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^([a-z0-9-]+)/$ /$1 [R=301,L]
@@ -22,7 +27,7 @@ Options -Indexes
     # Pretty page URLs: /compress-png -> default.php?p=compress-png
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^([a-z0-9-]+)$ default.php?p=$1 [L,QSA]
+    RewriteRule ^([a-z0-9-]+)$ default.php [L,QSA]
 </IfModule>
 
 ErrorDocument 404 /default.php
