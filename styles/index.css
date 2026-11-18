@@ -1659,3 +1659,94 @@ select:focus {
     cursor: not-allowed;
     opacity: 0.7;
 }
+/* ---- v2: extra stats, resize option, add-more button ---- */
+.stat-sub {
+    font-size: 0.68rem;
+    color: #6c757d;
+    margin-top: 2px;
+    min-height: 1em;
+    line-height: 1.25;
+}
+
+.stat-sub.is-worse {
+    color: var(--danger);
+}
+
+.setting-group.resize-group {
+    margin-bottom: 10px;
+}
+
+.setting-group.resize-group label {
+    margin-bottom: 6px;
+}
+
+#resizeSelect {
+    padding: 7px 10px;
+    font-size: 0.9rem;
+}
+
+.gallery-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.add-more-btn {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+}
+
+.add-more-btn:hover {
+    background: var(--secondary);
+    transform: translateY(-2px);
+}
+
+.comparison-slider:focus-visible,
+button:focus-visible,
+select:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+}
+
+#comparisonCanvas {
+    touch-action: none;
+}
+
+@media (max-width: 768px) {
+    .setting-group.resize-group {
+        margin-bottom: 6px;
+    }
+
+    #resizeSelect {
+        padding: 5px 8px;
+        font-size: 16px;
+    }
+
+    .add-more-btn,
+    .clear-all-btn {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+}
+
+/* Phones: let the page scroll so every control is reachable, and keep the
+   last controls clear of the floating download button. */
+@media (max-width: 768px) {
+    .app-container {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .control-panel {
+        flex-shrink: 0;
+        padding-bottom: 100px;
+    }
+}
