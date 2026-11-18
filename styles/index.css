@@ -1737,16 +1737,279 @@ select:focus-visible {
     }
 }
 
-/* Phones: let the page scroll so every control is reachable, and keep the
-   last controls clear of the floating download button. */
+
+
+/* =====================================================================
+   v3: the page scrolls. The tool fills the first screen and the guide,
+   FAQ, related tools and footer sit below it.
+   ===================================================================== */
+html,
+body {
+    position: static;
+    height: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    touch-action: auto;
+    -webkit-user-select: auto;
+    user-select: auto;
+    -webkit-touch-callout: default;
+}
+
+body {
+    background: #f4f6fb;
+    animation: none;
+    min-height: 100vh;
+}
+
+.app-container {
+    background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    min-height: 560px;
+}
+
+.app-title .app-title-text {
+    color: inherit;
+    text-decoration: none;
+}
+
+.app-h1 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.app-sub {
+    font-size: 0.95rem;
+    font-weight: 400;
+    opacity: 0.95;
+}
+
+.info-box .learn-link {
+    color: #fff;
+    font-weight: 600;
+    margin-left: 6px;
+}
+
+/* Max size + target size side by side */
+.setting-group.size-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.setting-group.size-group label {
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+}
+
+.setting-group.size-group select {
+    padding: 7px 8px;
+    font-size: 0.88rem;
+}
+
+.quality-group.is-auto .slider-container {
+    opacity: 0.45;
+}
+
+/* ---- Content below the tool ---- */
+.page-content {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 16px 24px;
+    color: #2b2d42;
+    line-height: 1.65;
+}
+
+.content-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(30, 40, 90, 0.06);
+}
+
+.content-card h1 {
+    font-size: 2rem;
+    margin-bottom: 16px;
+    line-height: 1.25;
+}
+
+.content-card h2 {
+    font-size: 1.4rem;
+    margin-bottom: 12px;
+    line-height: 1.3;
+}
+
+.content-card h3 {
+    font-size: 1.1rem;
+    margin: 20px 0 8px;
+}
+
+.content-card p {
+    margin-bottom: 12px;
+}
+
+.content-card p:last-child {
+    margin-bottom: 0;
+}
+
+.content-card a {
+    color: var(--primary);
+}
+
+.steps {
+    padding-left: 22px;
+    margin-bottom: 16px;
+}
+
+.steps li {
+    margin-bottom: 6px;
+}
+
+.btn-start {
+    display: inline-block;
+    background: var(--primary);
+    color: #fff !important;
+    padding: 10px 18px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.btn-start:hover {
+    background: var(--secondary);
+}
+
+.faq details {
+    border-top: 1px solid #e9ecf3;
+    padding: 12px 0;
+}
+
+.faq details:last-child {
+    border-bottom: 1px solid #e9ecf3;
+}
+
+.faq summary {
+    cursor: pointer;
+    font-weight: 600;
+    list-style-position: outside;
+}
+
+.faq details p {
+    margin: 8px 0 0;
+    color: #495057;
+}
+
+.related ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.related a {
+    display: block;
+    padding: 10px 14px;
+    border: 1px solid #dfe4f0;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.related a:hover {
+    border-color: var(--primary);
+    background: #f3f5ff;
+}
+
+.ad-slot {
+    margin: 0 0 20px;
+    min-height: 100px;
+    text-align: center;
+}
+
+.ad-label {
+    display: block;
+    font-size: 0.7rem;
+    color: #868e96;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+}
+
+.site-footer {
+    text-align: center;
+    padding: 24px 16px 40px;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.site-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 18px;
+    margin-bottom: 8px;
+}
+
+.site-footer a {
+    color: #495057;
+}
+
+/* ---- About / privacy / terms ---- */
+.info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+    color: #fff;
+}
+
+.info-header .app-title-text {
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.info-page {
+    padding-top: 28px;
+}
+
+.info-page .content-card ul {
+    padding-left: 22px;
+    margin-bottom: 12px;
+}
+
 @media (max-width: 768px) {
     .app-container {
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
+        height: auto;
+        min-height: 0;
+        overflow: visible;
     }
 
     .control-panel {
         flex-shrink: 0;
+    }
+
+    .page-content {
+        padding-top: 24px;
+    }
+
+    .content-card {
+        padding: 20px 18px;
+    }
+
+    .content-card h1 {
+        font-size: 1.6rem;
+    }
+
+    .setting-group.size-group select {
+        font-size: 16px;
+    }
+
+    /* The floating download button must not cover the footer links */
+    .site-footer {
         padding-bottom: 100px;
     }
 }

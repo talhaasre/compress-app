@@ -12,6 +12,7 @@
   'use strict';
 
   // ---------------------------------------------------------------- config
+  const PRESET = window.COMPRESS_PRESET || {}; // set per page in default.php
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB per image
   const MAX_FILES = 10;                   // images per batch
   const INPUT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp'];
@@ -32,6 +33,7 @@
   const zoomControls = $('zoomControls');
   const formatSelect = $('formatSelect');
   const resizeSelect = $('resizeSelect');
+  const targetSelect = $('targetSelect');
   const qualitySlider = $('qualitySlider');
   const qualityValue = $('qualityValue');
   const qualityDisplay = $('qualityDisplay');
@@ -106,7 +108,9 @@
   }
 
   function settingsKey(item) {
-    return `${item.format}|${item.quality}|${resizeSelect.value}`;
+    const target = parseInt(targetSelect.value, 10) || 0;
+    // In target-size mode the quality is chosen automatically.
+    return `${item.format}|${target ? 'auto' : item.quality}|${resizeSelect.value}|${target}`;
   }
 
   function canvasToBlob(c, type, quality) {
@@ -137,7 +141,7 @@
   function getPngWorker() {
     if (pngWorker || workerBroken) return pngWorker;
     try {
-      pngWorker = new Worker('scripts/png-worker.js');
+      pngWorker = new Worker('/scripts/png-worker.js');
       pngWorker.onmessage = (e) => {
         const job = pngJobs.get(e.data.id);
         if (!job) return;
@@ -208,41 +212,95 @@
       w = Math.max(1, Math.round(w * ratio));
       h = Math.max(1, Math.round(h * ratio));
     }
+    const sameFormat = item.format === normaliseType(item.type);
+    const targetKb = parseInt(targetSelect.value, 10) || 0;
 
+    let out;
+    if (targetKb > 0) {
+      const targetBytes = targetKb * 1024;
+      if (sameFormat && w === srcW && h === srcH && item.file.size <= targetBytes) {
+        out = { blob: item.file, width: w, height: h, keptOriginal: true, quality: null };
+      } else {
+        out = await fitToTarget(img, w, h, item.format, targetBytes);
+      }
+    } else {
+      const blob = await encode(img, w, h, item.format, item.quality);
+      out = { blob, width: w, height: h, quality: item.quality };
+      if (sameFormat && w === srcW && h === srcH && blob.size >= item.file.size) {
+        // Re-encoding made it bigger: the original is already well optimised.
+        out = { blob: item.file, width: w, height: h, keptOriginal: true, quality: null };
+      }
+    }
+
+    const format = out.keptOriginal ? normaliseType(item.type) : (normaliseType(out.blob.type) || item.format);
+    item.result = Object.assign({ key, format, srcWidth: srcW, srcHeight: srcH, keptOriginal: false, missedTarget: false }, out);
+    return item.result;
+  }
+
+  /** Draw the image at w×h and encode it. quality is 0–100. */
+  async function encode(img, w, h, format, quality) {
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
     const cx = c.getContext('2d');
     cx.imageSmoothingEnabled = true;
     cx.imageSmoothingQuality = 'high';
-    if (item.format === 'image/jpeg') {
+    if (format === 'image/jpeg') {
       // JPEG has no transparency: put transparent areas on white instead of black.
       cx.fillStyle = '#ffffff';
       cx.fillRect(0, 0, w, h);
     }
     cx.drawImage(img, 0, 0, w, h);
-
-    let blob;
-    if (item.format === 'image/png') {
-      const colors = pngColors(item.quality);
-      blob = colors === 0
-        ? await canvasToBlob(c, 'image/png')
-        : await encodePalettePng(cx.getImageData(0, 0, w, h), colors);
-    } else {
-      blob = await canvasToBlob(c, item.format, item.quality / 100);
+    if (format === 'image/png') {
+      const colors = pngColors(quality);
+      return colors === 0
+        ? canvasToBlob(c, 'image/png')
+        : encodePalettePng(cx.getImageData(0, 0, w, h), colors);
     }
+    return canvasToBlob(c, format, quality / 100);
+  }
 
-    let format = normaliseType(blob.type) || item.format;
-    let keptOriginal = false;
-    const sameFormat = format === normaliseType(item.type);
-    if (sameFormat && w === srcW && h === srcH && blob.size >= item.file.size) {
-      // Re-encoding made it bigger: the original is already well optimised.
-      blob = item.file;
-      keptOriginal = true;
+  /**
+   * Target file size mode: the highest quality that fits under targetBytes.
+   * Lowers quality first (down to 50%), then the dimensions, which looks
+   * better than a very low quality at full size.
+   */
+  async function fitToTarget(img, w, h, format, targetBytes) {
+    let smallest = null;
+    const remember = (blob, q) => {
+      if (!smallest || blob.size < smallest.blob.size) smallest = { blob, width: w, height: h, quality: q };
+    };
+    for (let round = 0; round < 8 && w >= 16 && h >= 16; round++) {
+      if (format === 'image/png') {
+        for (const q of [90, 75, 60, 45]) {
+          const blob = await encode(img, w, h, format, q);
+          remember(blob, q);
+          if (blob.size <= targetBytes) return { blob, width: w, height: h, quality: q };
+        }
+      } else {
+        let lo = 50, hi = 92, best = null;
+        const top = await encode(img, w, h, format, hi);
+        remember(top, hi);
+        if (top.size <= targetBytes) return { blob: top, width: w, height: h, quality: hi };
+        const bottom = await encode(img, w, h, format, lo);
+        remember(bottom, lo);
+        if (bottom.size <= targetBytes) {
+          best = { blob: bottom, width: w, height: h, quality: lo };
+          while (hi - lo > 4) {
+            const mid = Math.round((lo + hi) / 2);
+            const blob = await encode(img, w, h, format, mid);
+            if (blob.size <= targetBytes) { lo = mid; best = { blob, width: w, height: h, quality: mid }; }
+            else hi = mid;
+          }
+          return best;
+        }
+      }
+      // Still too big at the lowest quality: shrink the dimensions and try again.
+      const factor = Math.min(0.9, Math.max(0.3, Math.sqrt(targetBytes / smallest.blob.size) * 0.95));
+      w = Math.max(1, Math.round(w * factor));
+      h = Math.max(1, Math.round(h * factor));
     }
-
-    item.result = { key, blob, format, width: w, height: h, srcWidth: srcW, srcHeight: srcH, keptOriginal };
-    return item.result;
+    return Object.assign({ missedTarget: true }, smallest);
   }
 
   // ------------------------------------------------------------ comparison
@@ -329,6 +387,17 @@
   }
 
   function updateQualityUI(item) {
+    const auto = (parseInt(targetSelect.value, 10) || 0) > 0;
+    qualitySlider.disabled = auto;
+    qualitySlider.closest('.quality-group').classList.toggle('is-auto', auto);
+    if (auto) {
+      const q = item.result && item.result.key === settingsKey(item) ? item.result.quality : null;
+      qualityLabel.textContent = 'Quality (auto)';
+      qualityValue.textContent = q === null ? '–' : q;
+      qualityDisplay.textContent = 'Auto';
+      qualityDisplay.title = 'The highest quality that fits the target size is chosen for you.';
+      return;
+    }
     qualitySlider.value = item.quality;
     qualityValue.textContent = item.quality;
     if (item.format === 'image/png') {
@@ -356,11 +425,13 @@
     optimizedSize.textContent = formatFileSize(r.blob.size);
     const saved = 1 - r.blob.size / item.file.size;
     let meta = `${r.width}×${r.height} · ${FORMAT_NAMES[r.format] || ''}`;
-    if (r.keptOriginal) meta = 'Already optimised, original kept';
+    if (r.keptOriginal) meta = (parseInt(targetSelect.value, 10) > 0 ? 'Already under target, original kept' : 'Already optimised, original kept');
+    else if (r.missedTarget) meta = `Smallest possible (${r.width}×${r.height}), target not reached`;
     else if (saved > 0) meta = `−${(saved * 100).toFixed(0)}% · ` + meta;
     else meta = `+${(-saved * 100).toFixed(0)}% larger · ` + meta;
     optimizedMeta.textContent = meta;
-    optimizedMeta.classList.toggle('is-worse', !r.keptOriginal && saved <= 0);
+    optimizedMeta.classList.toggle('is-worse', (!r.keptOriginal && saved <= 0) || r.missedTarget);
+    if (images[selected] === item) updateQualityUI(item);
   }
 
   function updateDownloadLabel() {
@@ -502,7 +573,7 @@
     const item = images[index];
     populateFormatSelect(item);
     updateQualityUI(item);
-    scale = 1; offsetX = 0; offsetY = 0;
+    scale = 1; offsetX = 0; offsetY = 0; updateTouchAction();
     updateGallery();
     render();
   }
@@ -564,7 +635,8 @@
     const firstNew = images.length;
     files.forEach((file) => {
       const type = normaliseType(file.type);
-      const format = defaultOutputFormat(type);
+      // Conversion pages (e.g. PNG to JPG) preset the output format.
+      const format = (PRESET.format && (PRESET.format !== 'image/webp' || webpSupported)) ? PRESET.format : defaultOutputFormat(type);
       images.push({
         id: nextId++,
         file,
@@ -728,6 +800,13 @@
     scheduleRender(0);
   });
 
+  targetSelect.addEventListener('change', () => {
+    if (images[selected]) updateQualityUI(images[selected]);
+    updateGallery();
+    scheduleRender(0);
+    track('target_size', { kb: parseInt(targetSelect.value, 10) || 0 });
+  });
+
   applyToAllBtn.addEventListener('click', () => {
     const item = images[selected];
     if (!item) return;
@@ -791,7 +870,12 @@
 
   function zoomBy(delta) {
     scale = Math.min(Math.max(0.1, scale + delta * 0.1), 8);
+    updateTouchAction();
     drawImages();
+  }
+
+  function updateTouchAction() {
+    canvas.style.touchAction = scale > 1 ? 'none' : 'pan-y';
   }
 
   comparisonSlider.addEventListener('mousedown', (e) => {
@@ -829,7 +913,8 @@
       e.preventDefault();
       pinchStart = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
       pinchScale = scale;
-    } else if (e.touches.length === 1) {
+    } else if (e.touches.length === 1 && scale > 1) {
+      // One finger pans only when zoomed in; otherwise it scrolls the page.
       isPanning = true;
       startX = e.touches[0].clientX - offsetX;
       startY = e.touches[0].clientY - offsetY;
@@ -844,6 +929,7 @@
       e.preventDefault();
       const d = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
       scale = Math.min(Math.max(0.1, pinchScale * d / pinchStart), 8);
+      updateTouchAction();
       drawImages();
     } else if (e.target === canvas && isPanning && e.touches.length === 1) {
       e.preventDefault();
@@ -859,14 +945,16 @@
     pinchStart = 0;
   });
 
+  // Ctrl/Cmd + wheel (and trackpad pinch) zooms; a plain wheel scrolls the page.
   canvas.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     zoomBy(e.deltaY < 0 ? 1 : -1);
   }, { passive: false });
 
   $('zoomIn').addEventListener('click', () => zoomBy(1));
   $('zoomOut').addEventListener('click', () => zoomBy(-1));
-  $('resetZoom').addEventListener('click', () => { scale = 1; offsetX = 0; offsetY = 0; drawImages(); });
+  $('resetZoom').addEventListener('click', () => { scale = 1; offsetX = 0; offsetY = 0; updateTouchAction(); drawImages(); });
 
   // Keyboard users can move the comparison line with the arrow keys.
   comparisonSlider.setAttribute('tabindex', '0');
@@ -879,7 +967,17 @@
     drawImages();
   });
 
+  // "Start compressing" links in the page content scroll back to the tool.
+  document.querySelectorAll('[data-scroll-top]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!images.length) setTimeout(() => $('browseBtn').focus(), 400);
+  }));
+
   // ------------------------------------------------------------------ init
+  if (PRESET.target) targetSelect.value = String(PRESET.target);
+  if (PRESET.resize) resizeSelect.value = String(PRESET.resize);
+  updateTouchAction();
   window.addEventListener('resize', () => { resizeCanvas(); updateFloatingButton(); });
   canvas.style.cursor = 'grab';
   setDownloadEnabled(false);

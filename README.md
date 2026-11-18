@@ -19,6 +19,8 @@ processing.
 - **Optional resize**: cap the longest side at 3840, 2560, 1920, 1280 or 800 px
 - **Per-image settings**, or apply one format and quality to every image
 - **Never bigger**: if re-encoding would make a file larger, the original is kept
+- **Target file size**: get images under 20, 50, 100, 200 or 500 KB or 1 MB for
+  forms and upload limits (best quality that fits, then smaller dimensions)
 - Drag and drop, file picker, or paste a screenshot with Ctrl/Cmd + V
 - Works on phones, tablets and desktops
 
@@ -37,16 +39,36 @@ not depend on a CDN for compression.
 ## Run it locally
 
 ```bash
-php -S localhost:8000
-# then open http://localhost:8000/default.php
+php -S localhost:8000 dev-router.php
+# then open http://localhost:8000/
 ```
 
-PHP is only used to print the current year in the footer.
+PHP renders the pages (titles, help text and FAQ for each tool page); the
+compressor itself is plain JavaScript.
+
+## Pages and SEO
+
+Each tool page (`/compress-png`, `/png-to-jpg`, `/compress-image-to-100kb` …)
+is defined in `inc/pages.php` with its own title, description, help text, FAQ
+and preset. Add a page there, then add its URL to `sitemap.xml`. On the server,
+`.htaccess` routes the clean URLs to `default.php`.
+
+## Ads
+
+Ads are off until an AdSense publisher ID is set in `inc/config.php`. Then the
+AdSense script loads (for Auto ads), `/ads.txt` is generated, and any slot IDs
+you add show ads between the help sections. Ads are never placed inside the
+compressor.
 
 ## Project structure
 
 ```
-default.php          the page (HTML + meta tags)
+default.php          all pages (tool pages and about/privacy/terms)
+inc/config.php       analytics and AdSense settings
+inc/pages.php        tool pages: titles, help text, FAQ, presets
+inc/info-pages.php   about, privacy and terms
+.htaccess            clean URLs, caching (Apache/LiteSpeed)
+dev-router.php       clean URLs for `php -S` during development
 scripts/app.js       all app logic
 scripts/png-worker.js  PNG palette encoder (runs in a Web Worker)
 styles/index.css     styles
